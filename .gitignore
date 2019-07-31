@@ -2,3 +2,4 @@ data
 outputs-csv
 outputs
 neo4j/plugins
+logs
