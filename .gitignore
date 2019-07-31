@@ -1,8 +1,8 @@
 data
-outputs-csv
 outputs
+outputs-csv
+outputs-rdf
 neo4j/plugins
 logs
-
-*manifest.txt
 tmp
+*manifest.txt

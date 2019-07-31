@@ -123,13 +123,13 @@ def to_rdf(input, output, header, limit=None):
         c = 0
         for line in values(input):
             gid = line['gid'].replace(':', '-')
-            del line['gid']
-            row = {k: convert[types[k]](line[k]) for k in fieldnames if k in line}
             if 'Edge' in input:
-                writer.write('_:{} <{}> {}'.format(row['from'].replace(':', '-'), row['label'], row['to'].replace(':', '-')))
-                del row['from']
-                del row['to']
-            del row['label']
+                writer.write('_:{} <{}> _:{}\n'.format(line['from'].replace(':', '-'), line['label'], line['to'].replace(':', '-')))
+                del line['from']
+                del line['to']
+            del line['gid']
+            del line['label']
+            row = {k: convert[types[k]](line[k]) for k in fieldnames if k in line}
             for k, v in row.items():
                 if v is None:
                     continue
