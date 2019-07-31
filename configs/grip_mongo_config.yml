@@ -1,0 +1,10 @@
+Database: mongo
+
+Server:
+  HTTPPort: 18201
+  RPCPort: 18202
+
+MongoDB:
+  URL: mongo:27017
+  DBName: grip
+  UseAggregationPipeline: true

@@ -1,0 +1,7 @@
+Database: badger
+
+Server:
+  HTTPPort: 28201
+  RPCPort: 28202
+
+KVStorePath: /data/db

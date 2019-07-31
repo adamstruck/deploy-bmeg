@@ -1,0 +1,107 @@
+version: '3'
+services:
+
+  mongo:
+    image: mongo:3.6
+    container_name: test-mongo
+    volumes:
+       - /mnt/data2/bmeg/testing/data/mongo:/data/db
+
+  grip-kv:
+    build: grip-kv
+    container_name: test-grip-kv
+    volumes:
+        - ./configs/grip_badger_config.yml:/config/grip_config.yml
+        - ./grip-kv/load_kv.sh:/data/load_kv.sh
+        - /mnt/data2/bmeg/testing/data/badger:/data/db
+        - /mnt/data2/bmeg/testing/timings:/data/timings
+        - /mnt/data2/bmeg/bmeg-etl/outputs:/data/outputs
+        - /mnt/data2/bmeg/bmeg-etl/scripts/bmeg_file_manifest.txt:/data/bmeg_file_manifest.txt
+    entrypoint: ["sh", "load_kv.sh"]
+    ports:
+      - 28201:28201
+      - 28202:28202
+
+  grip-mongo:
+    image: bmeg/grip
+    container_name: test-grip-mongo
+    volumes:
+        - ./configs/grip_mongo_config.yml:/config/grip_config.yml
+    entrypoint: ["grip", "server", "--config", "/config/grip_config.yml"]
+    ports:
+      - 18201:18201
+      - 18202:18202
+    depends_on:
+      - mongo
+
+  # python & go container for loading data, running tests, etc.
+  etl:
+    build: etl
+    container_name: test-etl
+    volumes:
+      # mount bmeg-etl directory, to have access to `outputs/`
+      - /mnt/data2/bmeg/bmeg-etl:/bmeg-etl
+    depends_on:
+      - grip-mongo
+      - mongo
+
+  neo4j:
+    build: neo4j
+    container_name: test-neo4j
+    volumes:
+      - /mnt/data2/bmeg/testing/data/neo4j:/data
+      - /mnt/data2/bmeg/testing/logs/neo4j:/logs
+      - /mnt/data2/bmeg/testing/neo4j/plugins:/plugins
+      - /mnt/data2/bmeg/testing/neo4j:/etl/neo4j
+      - /mnt/data2/bmeg/bmeg-etl/outputs:/etl/outputs
+      - /mnt/data2/bmeg/bmeg-etl/scripts/bmeg_file_manifest.txt:/etl/bmeg_file_manifest.txt
+    ports:
+      - 7474:7474
+      - 7473:7473
+      - 7687:7687
+    environment:
+      - NEO4J_AUTH=none
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
+
+  janusgraph:
+    image: janusgraph/janusgraph:0.4.0
+    container_name: test-janusgraph
+    ports:
+      - 8182:8182
+    volumes:
+      - /mnt/data2/bmeg/testing/data/janusgraph:/var/lib/janusgraph
+
+  # dgraph containers
+  dgraph-zero:
+    image: dgraph/dgraph:latest
+    container_name: test-dgraph-zero
+    volumes:
+      - ./data/dgraph:/dgraph
+    ports:
+      - 5080:5080
+      - 6080:6080
+    restart: on-failure
+    command: dgraph zero --my=zero:5080
+ 
+  dgraph-server:
+    image: dgraph/dgraph:latest
+    container_name: test-dgraph-server
+    volumes:
+      - ./data/dgraph:/dgraph
+    ports:
+      - 8080:8080
+      - 9080:9080
+    restart: on-failure
+    command: dgraph alpha --my=server:7080 --lru_mb=2048 --zero=zero:5080
+
+  dgraph-ratel:
+    image: dgraph/dgraph:latest
+    container_name: test-dgraph-ratel
+    volumes:
+      - ./data/dgraph:/dgraph
+    ports:
+      - 8000:8000
+    command: dgraph-ratel
