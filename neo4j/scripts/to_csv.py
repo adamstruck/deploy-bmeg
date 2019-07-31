@@ -11,8 +11,6 @@ import ujson
 from flatten_json import flatten
 
 
-CONTROL = dict(zip(range(32), ' ' * 32))
-
 def reader(path):
     if path.endswith('.gz'):
         return gzip.open(path, 'r')
@@ -89,7 +87,6 @@ def keys(path, sample_size=1000):
             key = ''
             value_type = 'TYPE'
         decorated_keys.append('{}:{}'.format(key, value_type))
-    keys = list(kv_scheme.keys())
     return keys, decorated_keys
 
 
@@ -101,6 +98,7 @@ def values(path):
     for line in xformer(path):
         yield line
 
+
 first_cap_re = re.compile('(.)([A-Z][a-z]+)')
 all_cap_re = re.compile('([a-z0-9])([A-Z])')
 def to_snakecase(label):
@@ -108,6 +106,7 @@ def to_snakecase(label):
     label = label.replace("G2P", "g2p")
     s1 = first_cap_re.sub(r'\1_\2', label)
     return all_cap_re.sub(r'\1_\2', s1).lower()
+
 
 def get_label(path):
     """ given path, return label """
@@ -168,7 +167,7 @@ def to_csv(input, output, header, limit=None, write_header=False):
             writer.writeheader()
         c = 0
         for line in values(input):
-            row = {k: neo_2_py[types[k]](line[k]) for k in fieldnames + ["label", "from", "to"] if k in line}
+            row = {k: neo_2_py[types[k]](line[k]) for k in fieldnames if k in line}
             writer.writerow(row)
             c += 1
             if limit and c == limit:

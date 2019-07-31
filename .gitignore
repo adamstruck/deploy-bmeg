@@ -3,3 +3,6 @@ outputs-csv
 outputs
 neo4j/plugins
 logs
+
+*manifest.txt
+tmp

@@ -39,11 +39,14 @@ services:
     build: etl
     container_name: test-etl
     volumes:
-      # mount bmeg-etl directory, to have access to `outputs/`
       - /mnt/data2/bmeg/bmeg-etl:/bmeg-etl
+      - /mnt/data2/bmeg/testing:/testing
+      - /mnt/data2/bmeg/bmeg-etl/outputs:/testing/outputs
+      - /mnt/data2/bmeg/bmeg-etl/scripts/bmeg_file_manifest.txt:/testing/bmeg_file_manifest.txt
     depends_on:
       - grip-mongo
       - mongo
+      - dgraph-zero
 
   neo4j:
     build: neo4j
