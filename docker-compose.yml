@@ -46,7 +46,7 @@ services:
     depends_on:
       - grip-mongo
       - mongo
-      - dgraph-zero
+      - zero
 
   neo4j:
     build: neo4j
@@ -78,33 +78,32 @@ services:
       - /mnt/data2/bmeg/testing/data/janusgraph:/var/lib/janusgraph
 
   # dgraph containers
-  dgraph-zero:
+  zero:
     image: dgraph/dgraph:latest
     container_name: test-dgraph-zero
     volumes:
-      - ./data/dgraph:/dgraph
+      - ./data/dgraph/zero:/dgraph
     ports:
       - 5080:5080
       - 6080:6080
     restart: on-failure
-    command: dgraph zero --my=zero:5080
+    command: dgraph zero --my zero:5080
  
-  dgraph-server:
+  alpha:
     image: dgraph/dgraph:latest
-    container_name: test-dgraph-server
+    container_name: test-dgraph-alpha
     volumes:
-      - ./data/dgraph:/dgraph
+      - ./data/dgraph/alpha:/dgraph
     ports:
-      - 8080:8080
+      - 7080:7080
+      - 8081:8080
       - 9080:9080
     restart: on-failure
-    command: dgraph alpha --my=server:7080 --lru_mb=2048 --zero=zero:5080
+    command: dgraph alpha --my alpha:7080 --lru_mb 536871 --zero zero:5080
 
-  dgraph-ratel:
+  ratel:
     image: dgraph/dgraph:latest
     container_name: test-dgraph-ratel
-    volumes:
-      - ./data/dgraph:/dgraph
     ports:
       - 8000:8000
     command: dgraph-ratel

@@ -1,10 +1,10 @@
 import argparse
-import csv
 import gzip
 import logging
 import multiprocessing
 import os
 import re
+import sys
 import types
 import ujson
 
@@ -102,39 +102,44 @@ def get_output_path(outdir, path):
     return os.path.join(outdir, '{}.rdf'.format(path.replace('/', '.').strip('.')))
 
 
-def to_rdf(input, output, header, limit=None):
+def to_rdf(input, output, schema, limit=None):
     """ file to rdf '{path}.rdf' """
     convert = {
-        'str': lambda x: '"{}"'.format(str(x).strip().replace('\n', '').replace('\r', ''))  if x is not None else None,
+        'string': lambda x: str(x).strip().replace('\n', '').replace('\r', '') if x is not None else None,
         'bool': lambda x: bool(x) if x is not None else None,
         'int': lambda x: int(x) if x is not None else None,
         'float': lambda x: float(x) if x is not None else None,
     }
-    with open(header, 'r') as fh:
-        reader = csv.DictReader(fh)
-        fnames = reader.fieldnames
-        fieldnames = []
-        types = {}
-        for x in fnames:
-            f, t = x.split(":")
+    fieldnames = []
+    types = {}
+    with open(schema, 'r') as fh:
+        for line in fh:
+            line = line.split(' ')
+            f = line[0].strip(':')
+            t = line[1]
             fieldnames.append(f)
             types[f] = t
     with open(output, 'w') as writer:
         c = 0
         for line in values(input):
-            gid = line['gid'].replace(':', '-')
+            row = {k: convert[types[k]](line[k]) for k in fieldnames if k in line and k not in ['gid', 'label', 'from', 'to']}
             if 'Edge' in input:
-                writer.write('_:{} <{}> _:{}\n'.format(line['from'].replace(':', '-'), line['label'], line['to'].replace(':', '-')))
-                del line['from']
-                del line['to']
-            del line['gid']
-            del line['label']
-            row = {k: convert[types[k]](line[k]) for k in fieldnames if k in line}
-            for k, v in row.items():
-                if v is None:
-                    continue
-                rdf = '_:{} <{}> {}\n'.format(gid, k, v)
-                writer.write(rdf)
+                writer.write('_:{} <{}> _:{}'.format(line['from'].replace(':', '-'), line['label'], line['to'].replace(':', '-')))
+                if len(row) > 0:
+                    attrs = []
+                    for k, v in row.items():
+                        attrs.append('{}={},'.format(k, v))
+                    writer.write(' ({})'.format(', '.join(attrs)))
+                writer.write(' .\n')
+            else:
+                gid = line['gid'].replace(':', '-')
+                # https://docs.dgraph.io/howto/#giving-nodes-a-type
+                writer.write('_:{} <label> "{}" .\n'.format(gid, line['label']))
+                for k, v in row.items():
+                    if v is None:
+                        continue
+                    rdf = '_:{} <{}> "{}" .\n'.format(gid, k, v)
+                    writer.write(rdf)
             c += 1
             if limit and c == limit:
                 break
@@ -148,7 +153,7 @@ def to_rdf_job(path, outdir, limit=None):
     label = get_label(path)
     typ = 'Vertex' if 'Vertex' in path else 'Edge'
     label = '{}.{}'.format(label, typ)
-    header_path = os.path.join(outdir, '{}.header.csv'.format(label))
+    schema_path = os.path.join(outdir, '{}.schema.rdf'.format(label))
     comment = ''
     if os.path.isfile(output_path):
         comment = '# '
@@ -157,9 +162,10 @@ def to_rdf_job(path, outdir, limit=None):
     else:
         limit = ''
     script_dir = os.path.dirname(os.path.realpath(__file__))
-    return '{}python3.7 {}/to_rdf.py convert --input {} --output {} --header {} {}'.format(comment, script_dir, path, output_path, header_path, limit)
+    return '{}python3.7 {}/to_rdf.py convert --input {} --output {} --schema {} {}'.format(comment, script_dir, path, output_path, schema_path, limit)
 
-def cmd_gen(manifest, cmd_outdir, data_outdir, limit):
+
+def cmd_gen(manifest, cmd_outdir, rdf_outdir, limit):
     """ render commands to generate rdf file(s) and for for loading them into dgraph """
 
     config = {
@@ -191,12 +197,18 @@ def cmd_gen(manifest, cmd_outdir, data_outdir, limit):
         if label not in headers:
             headers[label] = {}
         headers[label] = {**headers[label], **to_header_dict(path)}
-    # write csv header files
+    # write schema files for each type
+    py2dgraph = {
+        'str': 'string',
+    }
     for label in headers.keys():
-        output_path = os.path.join(data_outdir, '{}.header.csv'.format(label))
+        output_path = os.path.join(rdf_outdir, '{}.schema.rdf'.format(label))
         with open(output_path, "w", newline='') as myfile:
-            writer = csv.DictWriter(myfile, fieldnames=headers[label].keys())
-            writer.writerow(headers[label])
+            for k, v in headers[label].items():
+                f, t = v.split(":")
+                if f in ["gid", "from", "to"]:
+                    continue
+                myfile.write('<{}>: {} .\n'.format(f, py2dgraph.get(t, t)))
 
     for path in config.vertex_files:
         if not os.path.isfile(path):
@@ -205,9 +217,9 @@ def cmd_gen(manifest, cmd_outdir, data_outdir, limit):
         label = get_label(path)
         if label not in vertex_rdfs:
             vertex_rdfs[label] = []
-            vertex_rdfs[label].append(os.path.join(data_outdir, '{}.Vertex.header.csv'.format(label)))
-        to_rdf_commands.append(to_rdf_job(path, data_outdir, limit=limit))
-        vertex_rdfs[label].append(get_output_path(data_outdir, path))
+            vertex_rdfs[label].append(os.path.join(rdf_outdir, '{}.Vertex.schema.rdf'.format(label)))
+        to_rdf_commands.append(to_rdf_job(path, rdf_outdir, limit=limit))
+        vertex_rdfs[label].append(get_output_path(rdf_outdir, path))
 
     for path in config.edge_files:
         if not os.path.isfile(path):
@@ -216,9 +228,9 @@ def cmd_gen(manifest, cmd_outdir, data_outdir, limit):
         label = get_label(path)
         if label not in edge_rdfs:
             edge_rdfs[label] = []
-            edge_rdfs[label].append(os.path.join(data_outdir, '{}.Edge.header.csv'.format(label)))
-        to_rdf_commands.append(to_rdf_job(path, data_outdir, limit=limit))
-        edge_rdfs[label].append(get_output_path(data_outdir, path))
+            edge_rdfs[label].append(os.path.join(rdf_outdir, '{}.Edge.schema.rdf'.format(label)))
+        to_rdf_commands.append(to_rdf_job(path, rdf_outdir, limit=limit))
+        edge_rdfs[label].append(get_output_path(rdf_outdir, path))
 
     path = os.path.join(cmd_outdir, 'to_rdf_commands.txt')
     with open(path, 'w') as outfile:
@@ -231,21 +243,24 @@ def cmd_gen(manifest, cmd_outdir, data_outdir, limit):
 if __name__ == '__main__':  # pragma: no cover
     logging.getLogger().setLevel(logging.DEBUG)
     parser = argparse.ArgumentParser(description='Loads vertexes and edges into dgraph')
-    parser.add_argument('--limit', dest='limit', type=int, default=None, help='limit the number of rows in each vertex/edge')
     subparsers = parser.add_subparsers(help='sub-command help')
     cmdgen_parser = subparsers.add_parser('cmd-gen', help='generate to_rdf commands')
-    cmdgen_parser.add_argument('--manifest', dest='manifest', required=True, help='manifest file path')
-    cmdgen_parser.add_argument('--cmd-outdir', dest='cmd_outdir', default='.', help='directory in which to write command files (to_rdf_commands.txt, load_db.txt)')
-    cmdgen_parser.add_argument('--data-outdir', dest='data_outdir', default='.', help='directory in which commands should specify to write rdf files')
+    cmdgen_parser.add_argument('-l', '--limit', dest='limit', type=int, default=None, help='limit the number of rows in each vertex/edge')
+    cmdgen_parser.add_argument('-m', '--manifest', dest='manifest', required=True, help='manifest file path')
+    cmdgen_parser.add_argument('-c', '--cmd-outdir', dest='cmd_outdir', default='.', help='directory in which to write command files (to_rdf_commands.txt, load_db.txt)')
+    cmdgen_parser.add_argument('-r', '--rdf-outdir', dest='rdf_outdir', default='.', help='directory in which commands should specify to write rdf files')
     cmdgen_parser.set_defaults(func=cmd_gen)
     tordf_parser = subparsers.add_parser('convert', help='convert input json to RDF')
-    tordf_parser.add_argument('--limit', dest='limit', type=int, default=None, help='limit the number of rows in each vertex/edge [default: None]')
-    tordf_parser.add_argument('--input', dest='input', required=True, help='path for single input file')
-    tordf_parser.add_argument('--output', dest='output', required=True, help='path for single output file')
-    tordf_parser.add_argument('--header', dest='header', required=True, help='path to corresponding header file')
+    tordf_parser.add_argument('-l', '--limit', dest='limit', type=int, default=None, help='limit the number of rows in each vertex/edge')
+    tordf_parser.add_argument('-i', '--input', dest='input', required=True, help='path for single input file')
+    tordf_parser.add_argument('-o', '--output', dest='output', required=True, help='path for single output file')
+    tordf_parser.add_argument('-s', '--schema', dest='schema', required=True, help='path to corresponding schema file')
     tordf_parser.set_defaults(func=to_rdf)
     args = parser.parse_args()
     logging.debug(vars(args))
     cmd_args = vars(args).copy()
+    if 'func' not in cmd_args:
+        parser.print_help()
+        sys.exit(0)
     del cmd_args['func']
     args.func(**cmd_args)
