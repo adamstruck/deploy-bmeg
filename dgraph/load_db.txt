@@ -1,3 +1,0 @@
-parallel --jobs 28 < ./dgraph/to_rdf_commands.txt
-cat ./dgraph/outputs-rdf/*.schema.rdf | sort | uniq > ./dgraph/outputs-rdf/schema.rdf
-cat ./dgraph/outputs-rdf/*.json.gz.rdf > ./dgraph/outputs-rdf/data.rdf

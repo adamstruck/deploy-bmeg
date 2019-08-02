@@ -1,47 +1,39 @@
+# Load BMEG info [Neo4j](https://neo4j.com/)
 
+# Load BMEG into [dgraph](https://dgraph.io/)
 
-# BMEG Neo4j
-
-## Scope
-
-* Evaluate Neo4j support for BMEG's graph oriented `vertex` and `edge` types.
-* Evaluate Neo4j support for BMEG's document model, specifically json queries
-
-## Out of Scope
-
-* "Bake-off" with mongo
-* Translation and strategies for "grip to cypher" i.e grip queries query translation (all queries were hand crafted)
-
-
-## neo4j setup
+This guide assumes the directory structure:
 
 ```
-alias cs='cypher-shell'
-export TERM=xterm
+.
+├── bmeg_file_manifest.txt
+├── docker-compose.yml
+├── data
+│   ├── neo4j
+├── neo4j
+│   ├── Dockerfile
+│   ├── plugins
+│   │   └── apoc-3.4.0.7-all.jar
+│   ├── queries.md
+│   ├── README.md
+│   ├── to_csv.py
+│   └── requirements.txt
 ```
 
-/etc/neo4j/neo4j.conf
+These commands are assumed to be run from the parent directory.
 
 ```
+# start the neo4j server
+docker-compose up -d neo4j
 
-# *****************
-# local changes
-# ****************
-dbms.security.procedures.unrestricted=apoc.*
-apoc.export.file.enabled=true
-apoc.import.file.enabled=true
-apoc.import.file.use_neo4j_config=true
-dbms.security.allow_csv_import_from_file_urls=true
+# exec into the container
+docker exec -it neo4j bash
+cd /etl
+
+# generate commands to transform data to RDF
+python3 neo4j/to_csv.py cmd-gen --manifest ./bmeg_file_manifest.txt --cmd-outdir ./neo4j --csv-outdir ./neo4j/outputs-csv
+
+# run transform commands and load the data into neo4j
+# an import report will be genereated in the working directory. 
+bash neo4j/load_db.txt
 ```
-
-
-cd /var/lib/neo4j/plugins/
-```
-sudo wget https://github.com/neo4j-contrib/neo4j-apoc-procedures/releases/download/3.4.0.3/apoc-3.4.0.3-all.jar
-sudo chown neo4j apoc-3.4.0.3-all.jar
-sudo chgrp adm apoc-3.4.0.3-all.jar
-```
-
-
-Use cases:
-* add papers associated with genes

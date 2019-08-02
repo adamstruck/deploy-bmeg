@@ -4,3 +4,5 @@ neo4j/plugins
 logs
 tmp*
 *manifest.txt
+load_db.txt
+to_*_commands.txt

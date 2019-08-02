@@ -115,7 +115,7 @@ def to_rdf(input, output, schema, limit=None):
     with open(schema, 'r') as fh:
         for line in fh:
             line = line.split(' ')
-            f = line[0].strip(':')
+            f = line[0].strip(':').strip('<').strip('>')
             t = line[1]
             fieldnames.append(f)
             types[f] = t
@@ -124,7 +124,9 @@ def to_rdf(input, output, schema, limit=None):
         for line in values(input):
             row = {k: convert[types[k]](line[k]) for k in fieldnames if k in line and k not in ['gid', 'label', 'from', 'to']}
             if 'Edge' in input:
-                writer.write('_:{} <{}> _:{}'.format(line['from'].replace(':', '-'), line['label'], line['to'].replace(':', '-')))
+                writer.write('_:{} <{}> _:{}'.format(line['from'].replace(':', '-').replace('/', '-'),
+                                                     line['label'],
+                                                     line['to'].replace(':', '-').replace('/', '-')))
                 if len(row) > 0:
                     attrs = []
                     for k, v in row.items():
@@ -132,7 +134,7 @@ def to_rdf(input, output, schema, limit=None):
                     writer.write(' ({})'.format(', '.join(attrs)))
                 writer.write(' .\n')
             else:
-                gid = line['gid'].replace(':', '-')
+                gid = line['gid'].replace(':', '-').replace('/', '-')
                 # https://docs.dgraph.io/howto/#giving-nodes-a-type
                 writer.write('_:{} <label.{}> "" .\n'.format(gid, line['label']))
                 for k, v in row.items():
@@ -201,6 +203,24 @@ def cmd_gen(manifest, cmd_outdir, rdf_outdir, limit):
     py2dgraph = {
         'str': 'string',
     }
+    # handle type mismatches in unified schema
+    # keys of form (current, new)
+    type_prio = {
+        ('string', 'string'): 'string',
+        ('string', 'int'): 'string',
+        ('string', 'float'): 'string',
+        ('string', 'bool'): 'string',
+        ('int', 'int'): 'int',
+        ('int', 'string'): 'string',
+        ('int', 'float'): 'float',
+        ('int', 'bool'): 'string',
+        ('float', 'float'): 'float',
+        ('float', 'string'): 'string',
+        ('float', 'int'): 'float',
+        ('float', 'bool'): 'string',
+    }
+    unified_schema = {}
+    # write individual schemas and create a unified schema
     for label in headers.keys():
         output_path = os.path.join(rdf_outdir, '{}.schema.rdf'.format(label))
         with open(output_path, "w", newline='') as myfile:
@@ -208,7 +228,17 @@ def cmd_gen(manifest, cmd_outdir, rdf_outdir, limit):
                 f, t = v.split(":")
                 if f in ["gid", "label", "from", "to"]:
                     continue
-                myfile.write('<{}>: {} .\n'.format(f, py2dgraph.get(t, t)))
+                t = py2dgraph.get(t, t)
+                if f in unified_schema:
+                    ct = unified_schema[f]
+                    t = type_prio[(ct, t)]
+                unified_schema[f] = t
+                myfile.write('<{}>: {} .\n'.format(f, t))
+        # write overall schema
+        output_path = os.path.join(rdf_outdir, 'schema.rdf')
+        with open(output_path, "w", newline='') as myfile:
+            for k,v in unified_schema.items():
+                myfile.write('<{}>: {} .\n'.format(k, v))
 
     for path in config.vertex_files:
         if not os.path.isfile(path):
@@ -241,7 +271,6 @@ def cmd_gen(manifest, cmd_outdir, rdf_outdir, limit):
     load_path = os.path.join(cmd_outdir, 'load_db.txt')
     with open(load_path, 'w') as outfile:
         outfile.write('parallel --jobs {} < {}\n'.format(multiprocessing.cpu_count(), to_rdf_path))
-        outfile.write('cat {} | sort | uniq > {}\n'.format(os.path.join(rdf_outdir, '*.schema.rdf'), os.path.join(rdf_outdir, 'schema.rdf')))
         outfile.write('cat {} > {}\n'.format(os.path.join(rdf_outdir, '*.json.gz.rdf'), os.path.join(rdf_outdir, 'data.rdf')))
         # TODO
         # outfile.write('dgraph bulk --schema {}/schema.rdf --rdfs {}/data.rdf --out {}'.format(rdf_outdir, rdf_outdir, dgraph_alpha_dir))
