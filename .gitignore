@@ -1,7 +1,8 @@
 data
 out*
-neo4j/plugins
 logs
+timings
+neo4j/plugins
 tmp*
 *manifest.txt
 load_db.txt
