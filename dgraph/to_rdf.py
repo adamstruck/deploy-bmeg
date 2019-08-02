@@ -134,7 +134,7 @@ def to_rdf(input, output, schema, limit=None):
             else:
                 gid = line['gid'].replace(':', '-')
                 # https://docs.dgraph.io/howto/#giving-nodes-a-type
-                writer.write('_:{} <label> "{}" .\n'.format(gid, line['label']))
+                writer.write('_:{} <label.{}> "" .\n'.format(gid, line['label']))
                 for k, v in row.items():
                     if v is None:
                         continue
@@ -206,7 +206,7 @@ def cmd_gen(manifest, cmd_outdir, rdf_outdir, limit):
         with open(output_path, "w", newline='') as myfile:
             for k, v in headers[label].items():
                 f, t = v.split(":")
-                if f in ["gid", "from", "to"]:
+                if f in ["gid", "label", "from", "to"]:
                     continue
                 myfile.write('<{}>: {} .\n'.format(f, py2dgraph.get(t, t)))
 
@@ -232,12 +232,20 @@ def cmd_gen(manifest, cmd_outdir, rdf_outdir, limit):
         to_rdf_commands.append(to_rdf_job(path, rdf_outdir, limit=limit))
         edge_rdfs[label].append(get_output_path(rdf_outdir, path))
 
-    path = os.path.join(cmd_outdir, 'to_rdf_commands.txt')
-    with open(path, 'w') as outfile:
+    to_rdf_path = os.path.join(cmd_outdir, 'to_rdf_commands.txt')
+    with open(to_rdf_path, 'w') as outfile:
         for command in to_rdf_commands:
             outfile.write('{}\n'.format(command))
-        logging.info('wrote {}'.format(path))
-    # TODO: commands to load into db
+    logging.info('wrote {}'.format(to_rdf_path))
+
+    load_path = os.path.join(cmd_outdir, 'load_db.txt')
+    with open(load_path, 'w') as outfile:
+        outfile.write('parallel --jobs {} < {}\n'.format(multiprocessing.cpu_count(), to_rdf_path))
+        outfile.write('cat {} | sort | uniq > {}\n'.format(os.path.join(rdf_outdir, '*.schema.rdf'), os.path.join(rdf_outdir, 'schema.rdf')))
+        outfile.write('cat {} > {}\n'.format(os.path.join(rdf_outdir, '*.json.gz.rdf'), os.path.join(rdf_outdir, 'data.rdf')))
+        # TODO
+        # outfile.write('dgraph bulk --schema {}/schema.rdf --rdfs {}/data.rdf --out {}'.format(rdf_outdir, rdf_outdir, dgraph_alpha_dir))
+    logging.info('wrote {}'.format(load_path))
 
 
 if __name__ == '__main__':  # pragma: no cover
