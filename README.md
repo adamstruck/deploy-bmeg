@@ -3,13 +3,13 @@
 ### Supported Databases
   - [GRIP](https://bmeg.github.io/grip/)
   - [Dgraph](https://dgraph.io/)
-  - [Neo4j]((https://neo4j.com/))
+  - [Neo4j](https://neo4j.com/)
 
 
-### Load data into GRIP
+#### Load data into GRIP
 
 
-### Load data into Dgraph
+#### Load data into Dgraph
 
 ```
 # start the dgraph zero server
@@ -34,7 +34,7 @@ dgraph live --schema ./dgraph/outputs-rdf/schema.rdf --zero zero:5080 --dgraph a
 ```
 
 
-### Load data into Neo4j
+#### Load data into Neo4j
 
 ```
 # start the neo4j server
