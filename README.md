@@ -1,23 +1,15 @@
-# Load BMEG into [dgraph](https://dgraph.io/)
+# Load BMEG Into a Graph Database
 
-This guide assumes the directory structure:
+### Supported Databases
+  - [GRIP](https://bmeg.github.io/grip/)
+  - [Dgraph](https://dgraph.io/)
+  - [Neo4j]((https://neo4j.com/))
 
-```
-.
-├── bmeg_file_manifest.txt
-├── docker-compose.yml
-├── data
-│   ├── dgraph
-│   │   ├── alpha
-│   │   └── zero
-├── dgraph
-│   ├── outputs-rdf
-│   ├── README.md
-│   ├── requirements.txt
-│   └── to_rdf.py
-```
 
-These commands are assumed to be run from the parent directory.
+### Load data into GRIP
+
+
+### Load data into Dgraph
 
 ```
 # start the dgraph zero server
@@ -39,4 +31,23 @@ docker-compose up -d ratel
 
 # load the schema
 dgraph live --schema ./dgraph/outputs-rdf/schema.rdf --zero zero:5080 --dgraph alpha:9080
+```
+
+
+### Load data into Neo4j
+
+```
+# start the neo4j server
+docker-compose up -d neo4j
+
+# exec into the container
+docker exec -it neo4j bash
+cd /etl
+
+# generate commands to transform data to RDF
+python3 neo4j/to_csv.py cmd-gen --manifest ./bmeg_file_manifest.txt --cmd-outdir ./neo4j --csv-outdir ./neo4j/outputs-csv
+
+# run transform commands and load the data into neo4j
+# an import report will be genereated in the working directory. 
+bash neo4j/load_db.txt
 ```
