@@ -102,14 +102,29 @@ def get_output_path(outdir, path):
     return os.path.join(outdir, '{}.rdf'.format(path.replace('/', '.').strip('.')))
 
 
+def convert_value(x, typ):
+    if x is None:
+        return None
+    if typ == 'string':
+        x = str(x).strip().replace('\n', '').replace('\r', '')
+        try:
+            x = ujson.loads(x)
+            x = ujson.dumps(x)
+        except:
+            pass
+        return ujson.dumps(x).replace("\\\\\/", "/").replace("\\/", "/")
+    elif typ == 'bool':
+        return '"{}"'.format(bool(x))
+    elif typ == 'int':
+        return '"{}"'.format(int(x))
+    elif typ == 'float':
+        return '"{}"'.format(float(x))
+    else:
+        raise TypeError("unknown type: {}".format(typ))
+
+
 def to_rdf(input, output, schema, limit=None):
     """ file to rdf '{path}.rdf' """
-    convert = {
-        'string': lambda x: str(x).strip().replace('\n', '').replace('\r', '') if x is not None else None,
-        'bool': lambda x: bool(x) if x is not None else None,
-        'int': lambda x: int(x) if x is not None else None,
-        'float': lambda x: float(x) if x is not None else None,
-    }
     fieldnames = []
     types = {}
     with open(schema, 'r') as fh:
@@ -119,28 +134,33 @@ def to_rdf(input, output, schema, limit=None):
             t = line[1]
             fieldnames.append(f)
             types[f] = t
+    valid_re = re.compile('[^a-zA-Z0-9\-\_]+')
     with open(output, 'w') as writer:
         c = 0
         for line in values(input):
-            row = {k: convert[types[k]](line[k]) for k in fieldnames if k in line and k not in ['gid', 'label', 'from', 'to']}
+            row = {k: convert_value(line[k], types[k]) for k in fieldnames if k in line and k not in ['gid', 'label', 'from', 'to']}
             if 'Edge' in input:
-                writer.write('_:{} <{}> _:{}'.format(line['from'].replace(':', '-').replace('/', '-'),
+                writer.write('_:{} <{}> _:{}'.format(valid_re.sub('-', line['from']),
                                                      line['label'],
-                                                     line['to'].replace(':', '-').replace('/', '-')))
+                                                     valid_re.sub('-', line['to'])))
                 if len(row) > 0:
                     attrs = []
                     for k, v in row.items():
-                        attrs.append('{}={},'.format(k, v))
+                        attrs.append('{}={}'.format(k, v))
                     writer.write(' ({})'.format(', '.join(attrs)))
                 writer.write(' .\n')
             else:
-                gid = line['gid'].replace(':', '-').replace('/', '-')
+                gid = valid_re.sub('-', line['gid'])
                 # https://docs.dgraph.io/howto/#giving-nodes-a-type
                 writer.write('_:{} <label.{}> "" .\n'.format(gid, line['label']))
                 for k, v in row.items():
                     if v is None:
                         continue
-                    rdf = '_:{} <{}> "{}" .\n'.format(gid, k, v)
+                    # hack to ignore embedded json docs
+                    # if v.startswith("{"):
+                        # logging.warning("skipping field %s", k)
+                        # continue
+                    rdf = '_:{} <{}> {} .\n'.format(gid, k, v)
                     writer.write(rdf)
             c += 1
             if limit and c == limit:
