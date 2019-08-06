@@ -7,6 +7,7 @@ import re
 import sys
 import types
 import ujson
+import json
 
 from flatten_json import flatten
 
@@ -107,12 +108,7 @@ def convert_value(x, typ):
         return None
     if typ == 'string':
         x = str(x).strip().replace('\n', '').replace('\r', '')
-        try:
-            x = ujson.loads(x)
-            x = ujson.dumps(x)
-        except:
-            pass
-        return ujson.dumps(x).replace("\\\\\/", "/").replace("\\/", "/")
+        return json.dumps(x)
     elif typ == 'bool':
         return '"{}"'.format(bool(x))
     elif typ == 'int':
