@@ -7,7 +7,6 @@ import re
 import sys
 import types
 import ujson
-import json
 
 from flatten_json import flatten
 
@@ -107,8 +106,8 @@ def convert_value(x, typ):
     if x is None:
         return None
     if typ == 'string':
-        x = str(x).strip().replace('\n', '').replace('\r', '')
-        return json.dumps(x)
+        x = str(x).strip().replace('\n', '').replace('\r', '').replace('\\', '')
+        return ujson.dumps(x, escape_forward_slashes=False)
     elif typ == 'bool':
         return '"{}"'.format(bool(x))
     elif typ == 'int':
@@ -278,14 +277,15 @@ def cmd_gen(manifest, cmd_outdir, rdf_outdir, limit):
         to_rdf_commands.append(to_rdf_job(path, rdf_outdir, limit=limit))
         edge_rdfs[label].append(get_output_path(rdf_outdir, path))
 
-    to_rdf_path = os.path.join(cmd_outdir, 'to_rdf_commands.txt')
+    to_rdf_path = os.path.join(cmd_outdir, 'to_rdf_commands.sh')
     with open(to_rdf_path, 'w') as outfile:
         for command in to_rdf_commands:
             outfile.write('{}\n'.format(command))
     logging.info('wrote {}'.format(to_rdf_path))
 
-    load_path = os.path.join(cmd_outdir, 'load_db.txt')
+    load_path = os.path.join(cmd_outdir, 'load_db.sh')
     with open(load_path, 'w') as outfile:
+        outfile.write('set -e\n'.format(multiprocessing.cpu_count(), to_rdf_path))
         outfile.write('parallel --jobs {} < {}\n'.format(multiprocessing.cpu_count(), to_rdf_path))
         outfile.write('cat {} > {}\n'.format(os.path.join(rdf_outdir, '*.json.gz.rdf'), os.path.join(rdf_outdir, 'data.rdf')))
         # TODO

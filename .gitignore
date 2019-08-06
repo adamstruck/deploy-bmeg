@@ -7,3 +7,5 @@ tmp*
 *manifest.txt
 load_db.txt
 to_*_commands.txt
+load_db.sh
+to_*_commands.sh
