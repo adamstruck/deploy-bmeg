@@ -3,6 +3,7 @@ out*
 logs
 timings
 neo4j/plugins
+neo4j/reactome.graphdb.tgz
 tmp*
 *manifest.txt
 load_db.txt
