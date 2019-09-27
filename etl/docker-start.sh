@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-
-ls -l /bmeg-etl
-echo '/bmeg-etl mounted'
+ls -l /etl
+echo '/etl mounted'
 
 # pause forever
 echo sleep infinity...

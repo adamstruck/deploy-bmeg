@@ -7,7 +7,8 @@ RUN mkdir -p /go/src/github.com/bmeg
 WORKDIR /go/src/github.com/bmeg
 ENV GOPATH=/go
 ENV PATH="/go/bin:${PATH}"
-RUN git clone https://github.com/bmeg/grip
-ENV GOPROXY="https://proxy.golang.org"
-RUN cd grip && git checkout kvindex-bulkwrite && make
+RUN git clone https://github.com/bmeg/grip && \
+  cd grip && \
+  git checkout kvindex-bulkwrite-as && \
+  make
 WORKDIR /data

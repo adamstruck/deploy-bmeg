@@ -11,6 +11,7 @@ services:
       - "numactl"
       - "--interleave=all"
       - "mongod"
+      - "--bind_ip=0.0.0.0"
     volumes:
        - /mnt/data2/bmeg/testing/data/mongo:/data/db
 
@@ -22,15 +23,15 @@ services:
         - ./grip-kv/load_kv.sh:/data/load_kv.sh
         - /mnt/data2/bmeg/testing/data/badger:/data/db
         - /mnt/data2/bmeg/testing/timings:/data/timings
-        - /mnt/data2/bmeg/bmeg-etl/outputs:/data/outputs
-        - /mnt/data2/bmeg/bmeg-etl/scripts/bmeg_file_manifest.txt:/data/bmeg_file_manifest.txt
+        - /mnt/data2/bmeg/bmeg-data/rc3:/data/outputs
+        - /mnt/data2/bmeg/testing/bmeg-etl/scripts/bmeg_file_manifest.txt:/data/bmeg_file_manifest.txt
     entrypoint: ["sh", "load_kv.sh"]
     ports:
       - 28201:28201
       - 28202:28202
 
   grip-mongo:
-    image: bmeg/grip
+    image: bmeg/grip:latest
     container_name: test-grip-mongo
     volumes:
         - ./configs/grip_mongo_config.yml:/config/grip_config.yml
@@ -44,14 +45,14 @@ services:
   # python & go container for loading data, running tests, etc.
   etl:
     build: etl
-    container_name: test-etl
+    container_name: tes-etl
     volumes:
-      - /mnt/data2/bmeg/bmeg-etl:/bmeg-etl
+      # mount bmeg-etl directory, to have access to `outputs/`
+      - /mnt/data2/bmeg/bmeg-data/:/etl/bmeg-data
+      # mount bmeg-etl 
+      - /mnt/data2/bmeg/bmeg-etl:/etl/bmeg-etl
+      # mount testing dir
       - /mnt/data2/bmeg/testing:/testing
-      - /mnt/data2/bmeg/bmeg-etl/outputs:/testing/outputs
-    depends_on:
-      - mongo
-      - zero
 
   neo4j:
     build: neo4j
@@ -60,9 +61,7 @@ services:
       - /mnt/data2/bmeg/testing/data/neo4j:/data
       - /mnt/data2/bmeg/testing/logs/neo4j:/logs
       - /mnt/data2/bmeg/testing/neo4j/plugins:/plugins
-      - /mnt/data2/bmeg/testing/neo4j:/etl/neo4j
-      - /mnt/data2/bmeg/bmeg-etl/outputs:/etl/outputs
-      - /mnt/data2/bmeg/bmeg-etl/scripts/bmeg_file_manifest.txt:/etl/bmeg_file_manifest.txt
+      - /mnt/data2/bmeg/testing/neo4j:/etl
     ports:
       - 7474:7474
       - 7473:7473
@@ -72,12 +71,17 @@ services:
       - NEO4J_dbms_memory_pagecache_size=250G
       - NEO4J_dbms_memory_heap_initial__size=25G
       - NEO4J_dbms_memory_heap_max__size=25G
-      - NEO4J_dbms_active__database=bmeg.db
+      - NEO4J_dbms_active__database=bmeg_rc3.db
+      # - NEO4J_dbms_active__database=bmeg.db
       # - NEO4J_dbms_active__database=reactome.db
       - NEO4J_dbms_security_procedures_unrestricted=apoc.*
       - NEO4J_apoc_export_file_enabled=true
       - NEO4J_apoc_import_file_enabled=true
       - NEO4J_apoc_import_file_use__neo4j__config=true
+        # - NEO4J_dbms_auto__index_relationships_enabled=true  
+        # - NEO4J_dbms_auto__index_relationships_keys=gid
+        # - NEO4J_dbms_auto__index_nodes_enabled=true  
+        # - NEO4J_dbms_auto__index_nodes_keys=gid
 
   # dgraph containers
   zero:
