@@ -72,7 +72,7 @@ def keys(path, sample_size=1000):
     for key in keys:
         py_type = kv_scheme[key]
         # ignore lists, dicts, etc... flatten_json should have taken care of most of these
-        if py_type not in py_2_neo:  
+        if py_type not in py_2_neo:
             continue
         value_type = py_2_neo[py_type]
         if key == 'gid':
@@ -194,7 +194,7 @@ def to_csv_job(path, outdir, limit=None):
     return '{}python3.7 {}/to_csv.py convert --input {} --output {} --header {} {}'.format(comment, script_dir, path, output_path, header_path, limit)
 
 
-def cmd_gen(manifest, cmd_outdir, csv_outdir, limit):
+def cmd_gen(manifest, db_name, cmd_outdir, csv_outdir, limit):
     """render csv file(s) and neo4j-import clause"""
 
     config = {
@@ -203,12 +203,15 @@ def cmd_gen(manifest, cmd_outdir, csv_outdir, limit):
     }
     config = types.SimpleNamespace(**config)
 
+    os.makedirs(cmd_outdir, exist_ok=True)
+    os.makedirs(csv_outdir, exist_ok=True)
+
     with open(manifest, 'r') as stream:
         for line in stream:
             line = line.strip()
             if 'Edge' in line:
                 config.edge_files.append(line)
-            else:
+            elif 'Vertex' in line:
                 config.vertex_files.append(line)
 
     vertex_csvs = {}
@@ -271,7 +274,7 @@ def cmd_gen(manifest, cmd_outdir, csv_outdir, limit):
 
     cmds = '\n'.join([
         'parallel --jobs {} < {}'.format(multiprocessing.cpu_count(), os.path.join(cmd_outdir, "to_csv_commands.txt")),
-        'neo4j-admin import --database bmeg.db --ignore-missing-nodes=true --ignore-duplicate-nodes=true --ignore-extra-columns=true --high-io=true \\'
+        'neo4j-admin import --database {} --ignore-missing-nodes=true --ignore-duplicate-nodes=true --ignore-extra-columns=true --high-io=true \\'.format(db_name)
     ])
     cmds = '{}\n  {}\n'.format(cmds, ' \\\n  '.join(nodes + edges))
     path = os.path.join(cmd_outdir, 'load_db.txt')
@@ -287,6 +290,7 @@ if __name__ == '__main__':  # pragma: no cover
     subparsers = parser.add_subparsers(help='sub-command help')
     cmdgen_parser = subparsers.add_parser('cmd-gen', help='generate to_csv commands')
     cmdgen_parser.add_argument('--manifest', dest='manifest', required=True, help='manifest file path')
+    cmdgen_parser.add_argument('--db-name', dest='db_name', default='bmeg.db', help='directory name')
     cmdgen_parser.add_argument('--cmd-outdir', dest='cmd_outdir', default='.', help='directory in which to write command files (to_csv_commands.txt, load_db.txt)')
     cmdgen_parser.add_argument('--csv-outdir', dest='csv_outdir', default='.', help='directory in which commands should specify to write csv files')
     cmdgen_parser.set_defaults(func=cmd_gen)
