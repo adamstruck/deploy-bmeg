@@ -1,8 +1,27 @@
 #!/bin/sh
 
-cd /data
-cat bmeg_file_manifest.txt | grep Vertex > vertex_manifest.txt
-cat bmeg_file_manifest.txt | grep Edge > edge_manifest.txt
-{ time grip kvload bmeg_rc3 --db ./db --edge-manifest edge_manifest.txt --vertex-manifest vertex_manifest.txt ; } 2> timings/kvload.stderr
-grip server --config /config/grip_config.yml
-tail -f /dev/null
+set -e
+
+if [ "$#" -ne 2 ]; then
+		printf "Illegal number of parameters.\n\n"
+		printf "Usage:\n	load_kv.sh <graph-name> <data-dir>\n"
+		exit 1
+fi
+
+GRAPH=$1
+DATAPATH=$2
+
+cd $DATAPATH
+
+if [ ! -d "outputs" ]; then
+		echo "provided path does not contain 'outputs' directory"
+		exit 1
+fi
+
+if [ ! -f "bmeg_file_manifest.txt" ]; then
+		echo "provided path is missing 'bmeg_file_manifest.txt'"
+		exit 1
+fi
+
+cat bmeg_file_manifest.txt | grep Vertex | xargs -n 1 -I {} grip load $GRAPH --vertex {}
+cat bmeg_file_manifest.txt | grep Edge | xargs -n 1 -I {} grip load $GRAPH --edge {}

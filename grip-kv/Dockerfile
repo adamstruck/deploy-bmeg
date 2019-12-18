@@ -9,6 +9,6 @@ ENV GOPATH=/go
 ENV PATH="/go/bin:${PATH}"
 RUN git clone https://github.com/bmeg/grip && \
   cd grip && \
-  git checkout kvindex-bulkwrite-as && \
+  git checkout grids && \
   make
-WORKDIR /data
+WORKDIR /opt

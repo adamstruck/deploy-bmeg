@@ -19,15 +19,15 @@ services:
     build: grip-kv
     container_name: test-grip-kv
     volumes:
-        - ./configs/grip_badger_config.yml:/config/grip_config.yml
-        - ./grip-kv/load_kv.sh:/data/load_kv.sh
-        - ./data/badger:/data/db
-        - ./timings:/data/timings
-        - /mnt/data2/bmeg/bmeg-data/rc3:/data/outputs
-    entrypoint: ["sh", "load_kv.sh"]
+        - ./configs/grip_kv_config.yml:/opt/grip_config.yml
+        - ./grip-kv/load_kv.sh:/opt/load_kv.sh
+        - ./data/grip-kv:/opt/db
+        - ./timings:/opt/timings
+        - $BMEGDATA:/data:ro
+    entrypoint: ["grip", "server", "--config", "/opt/grip_config.yml"]
     ports:
-      - 28201:28201
-      - 28202:28202
+      - 28201:8201
+      - 28202:8202
 
   grip-mongo:
     image: bmeg/grip:latest
@@ -36,8 +36,8 @@ services:
         - ./configs/grip_mongo_config.yml:/config/grip_config.yml
     entrypoint: ["grip", "server", "--config", "/config/grip_config.yml"]
     ports:
-      - 18201:18201
-      - 18202:18202
+      - 18201:8201
+      - 18202:8202
     depends_on:
       - mongo
 
@@ -78,10 +78,10 @@ services:
       - NEO4J_apoc_export_file_enabled=true
       - NEO4J_apoc_import_file_enabled=true
       - NEO4J_apoc_import_file_use__neo4j__config=true
-        # - NEO4J_dbms_auto__index_relationships_enabled=true  
-        # - NEO4J_dbms_auto__index_relationships_keys=gid
-        # - NEO4J_dbms_auto__index_nodes_enabled=true  
-        # - NEO4J_dbms_auto__index_nodes_keys=gid
+      # - NEO4J_dbms_auto__index_relationships_enabled=true
+      # - NEO4J_dbms_auto__index_relationships_keys=gid
+      # - NEO4J_dbms_auto__index_nodes_enabled=true
+      # - NEO4J_dbms_auto__index_nodes_keys=gid
 
   # dgraph containers
   zero:
@@ -94,7 +94,7 @@ services:
       - 6080:6080
     restart: on-failure
     command: dgraph zero --my zero:5080
- 
+
   alpha:
     image: dgraph/dgraph:latest
     container_name: test-dgraph-alpha
